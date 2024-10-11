@@ -84,7 +84,7 @@ export default function Home() {
 				)}
 
 				{summary && (
-					<div className="bg-gray-900 p-4 rounded-md shadow-md">
+					<div className="rounded-md">
 						{summary}
 					</div>
 				)}

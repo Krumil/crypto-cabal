@@ -5,7 +5,6 @@ import { openai } from '@ai-sdk/openai';
 import { z } from 'zod';
 import React from 'react';
 import axios from 'axios';
-import { headers } from 'next/headers';
 import LoadingComponent from '@/components/LoadingComponent';
 import ActivitySummary from '@/components/ActivitySummary';
 
@@ -107,17 +106,19 @@ const getTokenPrices = async (tokens: string[]): Promise<Record<string, number>>
 	}
 };
 
-const getPopularTokens = async (limit: number = 5): Promise<TokenInfo[]> => {
-	const url = `${COINGECKO_API_URL}/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=${limit}&page=1&sparkline=false&price_change_percentage=24h`;
+const getPopularTokens = async (limit: number = 15): Promise<TokenInfo[]> => {
+	const url = `${COINGECKO_API_URL}/search/trending`;
 	console.log(`Fetching ${limit} popular tokens from CoinGecko`);
 	try {
 		const response = await axios.get(url);
-		const popularTokens = response.data.map((token: any) => ({
-			id: token.id,
-			symbol: token.symbol,
-			name: token.name,
-			price: token.current_price,
-			price_change_percentage_24h: token.price_change_percentage_24h,
+		const popularTokens = response.data.coins.slice(0, limit).map((coin: any) => ({
+			id: coin.item.id,
+			symbol: coin.item.symbol,
+			name: coin.item.name,
+			price: coin.item.data.price,
+			price_change_percentage_24h: coin.item.data.price_change_percentage_24h.usd || 0,
+			image: coin.item.small,
+			sparkline: coin.item.data.sparkline,
 		}));
 		console.log(`Successfully fetched ${popularTokens.length} popular tokens`);
 		return popularTokens;
@@ -134,6 +135,7 @@ export async function streamActivitySummary(wallets: string[], chain: string, in
 	console.log('intervalHours', intervalHours);
 
 	try {
+		let tokenPrices: Record<string, number> = {};
 		const walletActivity = await getWalletActivity(wallets, chain, intervalHours);
 		const popularTokens = await getPopularTokens();
 		const tokenAddresses = walletActivity
@@ -141,7 +143,9 @@ export async function streamActivitySummary(wallets: string[], chain: string, in
 			.map(tx => tx.to)
 			.filter((value, index, self) => self.indexOf(value) === index);
 
-		const tokenPrices = await getTokenPrices(tokenAddresses);
+		if (tokenAddresses.length > 0) {
+			tokenPrices = await getTokenPrices(tokenAddresses);
+		}
 
 		console.log('All data fetched successfully, generating summary');
 
