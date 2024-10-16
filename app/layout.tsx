@@ -1,7 +1,9 @@
+import "./globals.css";
 import type { Metadata } from "next";
 import { Space_Grotesk } from "next/font/google";
-import "./globals.css";
 import { getTheme } from '@/lib/getTheme';
+import Providers from "./providers";
+import { headers } from "next/headers";
 
 const spaceGrotesk = Space_Grotesk({
 	subsets: ['latin'],
@@ -19,13 +21,15 @@ export default function RootLayout({
 }: Readonly<{
 	children: React.ReactNode;
 }>) {
+	const cookie = headers().get("cookie");
+
 	return (
 		<html lang="en" suppressHydrationWarning>
 			<head>
 				<script dangerouslySetInnerHTML={{ __html: getTheme }} />
 			</head>
 			<body className={`${spaceGrotesk.variable} font-sans antialiased`}>
-				{children}
+				<Providers cookie={cookie}>{children}</Providers>
 			</body>
 		</html>
 	);

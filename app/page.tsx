@@ -3,16 +3,17 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { streamActivitySummary } from './actions';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Settings, Plus, X, Wallet } from 'lucide-react';
 import { ToastAction } from "@/components/ui/toast";
 import { useToast } from "@/hooks/use-toast";
+import ActivitySummary from '@/components/ActivitySummary';
 
 export default function Home() {
 	const [wallets, setWallets] = useState<string[]>([]);
 	const [newWallet, setNewWallet] = useState<string>('');
-	const [summary, setSummary] = useState<React.ReactNode>();
+	const [summaryData, setSummaryData] = useState<any>(null);
+	const [isLoading, setIsLoading] = useState(false);
 	const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 	const { toast } = useToast();
 
@@ -22,6 +23,12 @@ export default function Home() {
 			setWallets(JSON.parse(savedWallets));
 		}
 	}, []);
+
+	useEffect(() => {
+		if (wallets.length > 0) {
+			generateSummary();
+		}
+	}, [wallets]);
 
 	const addWallet = () => {
 		if (newWallet && !wallets.includes(newWallet)) {
@@ -65,7 +72,45 @@ export default function Home() {
 	};
 
 	const generateSummary = async () => {
-		setSummary(await streamActivitySummary(wallets, 'ethereum'));
+		setIsLoading(true);
+		try {
+
+			// load from local storage if available
+			const savedSummaryData = localStorage.getItem('summaryData');
+			if (savedSummaryData) {
+				setSummaryData(JSON.parse(savedSummaryData));
+				setIsLoading(false);
+				return;
+			}
+
+			const response = await fetch('/api/generate-summary', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({
+					wallets,
+					chain: 'ethereum',
+					intervalHours: 24,
+				}),
+			});
+			const data = await response.json();
+			if (response.ok) {
+				setSummaryData(data.data);
+				localStorage.setItem('summaryData', JSON.stringify(data.data));
+			} else {
+				throw new Error(data.error || 'Failed to generate summary');
+			}
+		} catch (error) {
+			console.error('Error generating summary:', error);
+			toast({
+				title: "Error",
+				description: "Failed to generate summary. Please try again.",
+				variant: "destructive",
+			});
+		} finally {
+			setIsLoading(false);
+		}
 	};
 
 	return (
@@ -75,17 +120,24 @@ export default function Home() {
 					<h1 className="text-2xl font-bold text-gray-100">Crypto Cabal</h1>
 				</div>
 
-				{wallets.length > 0 ? (
-					<Button onClick={generateSummary} className="w-full mb-6 bg-gray-800 hover:bg-gray-700 text-gray-200">Generate Summary</Button>
-				) : (
+				{wallets.length === 0 && (
 					<div className="text-center mb-6 p-4 bg-gray-900 rounded-md">
 						<p className="text-gray-400">No wallets added yet. Click the settings button to add a wallet.</p>
 					</div>
 				)}
 
-				{summary && (
-					<div className="rounded-md">
-						{summary}
+				{isLoading && (
+					<div className="text-center mb-6 p-4 bg-gray-900 rounded-md">
+						<p className="text-gray-400">Generating Summary...</p>
+					</div>
+				)}
+
+				{summaryData && (
+					<div className="rounded-md relative">
+						<ActivitySummary
+							userActions={summaryData.walletActivity}
+							popularTokens={summaryData.popularTokens}
+						/>
 					</div>
 				)}
 			</div>
